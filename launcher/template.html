@@ -84,6 +84,13 @@
   .chip:hover{border-color:var(--accent);color:var(--accent)}
   .chip.ch{background:var(--lect-soft);color:var(--lect)}
   .chip.dead{opacity:.45;cursor:not-allowed}
+  /* pset handout chips: always open in Cursor / Preview, so the
+     Jupyter-vs-Cursor toggle deliberately does not touch them */
+  .chip.work{background:var(--accent);color:#fff;font-weight:600}
+  .chip.work:hover{color:#fff;opacity:.9}
+  .chip.pdf{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .chip.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+  .dl-desc .links{margin-top:6px}
   .item.psetout{color:var(--muted);font-size:13px}
   .item.psetout b{color:var(--muted)}
   .note{font-size:12px;color:var(--muted);font-weight:400;white-space:nowrap}

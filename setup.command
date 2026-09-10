@@ -133,6 +133,22 @@ else
   git clone "$UPSTREAM" "$REPO_DIR/manipulation" || fail "git clone failed."
 fi
 
+# ---------------------------------------------------------------- 5b. psets
+# Problem sets live in a separate public repo, released as the term goes on.
+# We only ever clone and link to them -- never modify their contents.
+HANDOUTS_URL="https://github.com/tlpmit/6.4210-2-fall26-handouts.git"
+if [ -d "$REPO_DIR/handouts/.git" ]; then
+  bold "Updating problem sets..."
+  # Deliberately gentle: students are told to add a private backup remote, and
+  # may have renamed origin. Never force anything over their setup.
+  git -C "$REPO_DIR/handouts" pull --ff-only 2>/dev/null \
+    || warn "Could not fast-forward handouts/ -- pull it yourself if you have a custom remote."
+else
+  bold "Cloning problem sets..."
+  git clone "$HANDOUTS_URL" "$REPO_DIR/handouts" \
+    || warn "Could not clone the handouts repo; psets will not appear in the launcher."
+fi
+
 # ---------------------------------------------------------------- 6. schedule
 bold "Fetching the course schedule..."
 python "$REPO_DIR/launcher/fetch_schedule.py" || \

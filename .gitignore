@@ -1,5 +1,7 @@
-# Cloned upstream textbook/notebook repo (fetched by setup.command)
+# Cloned upstream repos (fetched by setup.command). Course content is never
+# vendored into this repo -- only linked to.
 manipulation/
+handouts/
 
 # Generated at setup / launch time
 launcher/schedule.html

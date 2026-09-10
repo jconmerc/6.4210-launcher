@@ -112,6 +112,32 @@ including a folder with spaces. Override with:
 MANIPULATION_VENV=/some/clean/path ./setup.command
 ```
 
+## Problem sets
+
+`setup.command` also clones the course's public handouts repo
+([tlpmit/6.4210-2-fall26-handouts](https://github.com/tlpmit/6.4210-2-fall26-handouts))
+into `handouts/`, and the launcher links to each pset from both the week view
+and the **Due dates** tab: an **open workspace** button, the assignment PDF, and
+every `.py` / `.ipynb` file in that pset. Psets appear as staff release them;
+`./setup.command` (or `git -C handouts pull`) picks up new ones.
+
+Pset chips always open in Cursor (PDFs in your browser), regardless of the
+Jupyter/Cursor toggle — pset work is `.py` files you edit, not notebooks. Use
+**open workspace** first: it opens the handouts repo root, which is what carries
+`utils/` (imported by pset code) and the editor settings that select the right
+interpreter.
+
+**This tooling never modifies pset content** — it only clones and links. The
+`handouts/` clone is gitignored here, so nothing of the course's is republished.
+
+A note on environments: the handouts README suggests a `uv`-managed `.venv`
+inside its own clone. Reusing this repo's venv works and is safer — a `.venv`
+inside a course folder whose name has spaces or parentheses hits the very Drake
+path bug that README itself warns about. Verified by running `ps1` against it.
+Two things it asks for that this repo already handles: Graphviz, and keeping the
+venv on a clean path. Do read its §2 if you want a private GitHub backup of your
+work — and note its warning **not to fork** the public repo.
+
 ## Why Drake is pinned
 
 `manipulation` requires only `drake>=1.45.0`, so a plain install grabs the

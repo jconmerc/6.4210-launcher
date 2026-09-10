@@ -18,6 +18,7 @@ import urllib.parse
 HERE = pathlib.Path(__file__).resolve().parent
 COURSE = HERE.parent
 BOOK = COURSE / "manipulation" / "book"
+HANDOUTS = COURSE / "handouts"
 
 TAG = re.compile(r"<[^>]+>")
 WS = re.compile(r"\s+")
@@ -85,6 +86,24 @@ def collect_notebooks():
     return found
 
 
+def collect_psets():
+    """Pset number -> its handout files. Read-only: we only ever link to these."""
+    found = {}
+    if not HANDOUTS.is_dir():
+        return found
+    for d in sorted(HANDOUTS.iterdir()):
+        m = re.fullmatch(r"ps(\d+)", d.name) if d.is_dir() else None
+        if not m:
+            continue
+        found[int(m.group(1))] = {
+            "dir": d,
+            "pdf": sorted(d.glob("*.pdf")),
+            "code": sorted(d.glob("*.py")),
+            "nb": sorted(d.glob("*.ipynb")),
+        }
+    return found
+
+
 def main():
     port = token = None
     for arg in sys.argv[1:]:
@@ -96,6 +115,7 @@ def main():
         port, token = discover_server()
 
     schedule = json.loads((HERE / "schedule.json").read_text())
+    psets = collect_psets()
     order = json.loads((BOOK / "chapters.json").read_text())["chapter_ids"]
     notebooks = collect_notebooks()
     titles = {cid: strip_num(chapter_title(cid)) for cid in notebooks}
@@ -123,6 +143,30 @@ def main():
 
     def fmt(iso):
         return datetime.date.fromisoformat(iso).strftime("%a %b %-d")
+
+    def cursor_url(path):
+        return "cursor://file" + urllib.parse.quote(str(path))
+
+    def pset_chips(n):
+        """Links to a pset's handout files. Pset code is .py you edit, so these
+        open in Cursor; the PDF opens in the browser/Preview."""
+        ps = psets.get(n)
+        if not ps:
+            return ""
+        # Open the repo ROOT as the workspace, not psN/ -- the root is what
+        # carries utils/ (which pset code imports) and .vscode/settings.json
+        # (which selects the right interpreter). With that window open, the
+        # per-file chips below then open inside it.
+        bits = [f'<a class="chip work" href="{cursor_url(HANDOUTS)}" '
+                f'title="Open the handouts repo as a Cursor workspace '
+                f'(gives you utils/ and the right interpreter)">open workspace</a>']
+        for f in ps["pdf"]:
+            bits.append(f'<a class="chip pdf" target="_blank" '
+                        f'href="file://{urllib.parse.quote(str(f))}">{html.escape(f.name)}</a>')
+        for f in ps["code"] + ps["nb"]:
+            bits.append(f'<a class="chip code" href="{cursor_url(f)}">'
+                        f'{html.escape(f.name)}</a>')
+        return f'<div class="links">{"".join(bits)}</div>' 
     weeks_html = []
     for i, w in enumerate(schedule["weeks"], 1):
         start = datetime.date.fromisoformat(w["start"])
@@ -161,14 +205,15 @@ def main():
                             if e.get("out") else "")
                     items.append(
                         f'<div class="item {cls}"><b>{html.escape(label)} due</b> '
-                        f'{html.escape(e["description"])}{tail}</div>')
+                        f'{html.escape(e["description"])}{tail}'
+                        f'{pset_chips(e.get("number"))}</div>')
                 elif t == "assignment_out":
                     due = due_by_no.get(e.get("number"))
                     tail = (f' <span class="note">\u00b7 due {fmt(due)}</span>'
                             if due else "")
                     items.append(
                         f'<div class="item {cls}"><b>{html.escape(label)}</b> '
-                        f'handed out{tail}</div>')
+                        f'handed out{tail}{pset_chips(e.get("number"))}</div>')
                 else:
                     head = f"<b>{html.escape(label)}</b> " if label else ""
                     items.append(
@@ -225,11 +270,13 @@ def main():
         name = dl["label"] or ("Quiz" if dl["type"] == "quiz" else "Deadline")
         out = (f'<span class="note">out {fmt(dl["out"])}</span>'
                if dl.get("out") else "")
+        m = re.match(r"Problem Set (\d+)", name)
+        mats = pset_chips(int(m.group(1))) if m else ""
         dl_rows.append(
             f'<div class="dl {kind}" data-date="{dl["date"]}">'
             f'<span class="dl-date">{d.strftime("%a %b %-d")}</span>'
             f'<span class="dl-name">{html.escape(name)}</span>'
-            f'<span class="dl-desc">{html.escape(dl["description"])} {out}</span>'
+            f'<span class="dl-desc">{html.escape(dl["description"])} {out}{mats}</span>'
             f'<span class="dl-when"></span></div>')
     deadlines_html = ('<section class="chapter"><header><h3>All due dates</h3>'
                       '<a class="notes" target="_blank" href="{{HANDOUTS}}">handouts repo \u2197</a>'
@@ -252,6 +299,7 @@ def main():
            .replace("{{GENERATED}}", datetime.datetime.now().strftime("%b %-d, %-I:%M %p")))
     (HERE / "index.html").write_text(out)
     print(f"built {HERE/'index.html'}  ({total} notebooks, "
+          f"{len(psets)} pset{'' if len(psets) == 1 else 's'}, "
           f"{'server ' + str(port) if port else 'no server'})")
 
 
