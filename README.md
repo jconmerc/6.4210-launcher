@@ -62,8 +62,16 @@ Or just double-click `setup.command` then `start.command` in Finder.
 ### Prefer an editor over JupyterLab?
 
 You don't have to use Jupyter at all. Cursor and VS Code open `.ipynb` files
-natively — point the kernel picker at `~/.venvs/manipulation/bin/python` and run
-cells there. The launcher page has an **Open in: Jupyter | Cursor** toggle: in
+natively. `setup.command` registers the venv as a user-level Jupyter kernel, so
+pick **"Robotic Manipulation (Drake)"** in the kernel picker the first time you
+open a notebook — the editor remembers it per file.
+
+That registration matters: a `cursor://` link opens a *bare file* with no
+workspace folder, so `.vscode/settings.json` never loads and the editor will
+otherwise offer you the bare Homebrew Python, which has no Drake in it. If you
+see *"Running cells requires the ipykernel package"*, you have the wrong
+interpreter selected — switch kernels rather than installing ipykernel where it
+suggests. The launcher page has an **Open in: Jupyter | Cursor** toggle: in
 Cursor mode every notebook chip becomes a `cursor://` link that opens the file
 straight in the editor (and works whether or not a Jupyter server is running).
 Your choice is remembered per browser.
@@ -102,6 +110,26 @@ including a folder with spaces. Override with:
 
 ```bash
 MANIPULATION_VENV=/some/clean/path ./setup.command
+```
+
+## Why Drake is pinned
+
+`manipulation` requires only `drake>=1.45.0`, so a plain install grabs the
+newest release — and **drake 1.57.0 (released 2026-09-10) breaks the notebooks**.
+Anything that builds a diagram, `book/intro/intro.ipynb` included, dies with:
+
+```
+Failure at systems/framework/diagram_builder.cc:490 in ThrowIfInputAlreadyWired()
+```
+
+The same notebooks pass on **1.56.0**, which is what `setup.command` installs.
+This is upstream timing, not a local misconfiguration: the notebook repo simply
+hasn't caught up with a Drake released days later.
+
+Once upstream catches up, take the pin off:
+
+```bash
+DRAKE_PIN=drake ./setup.command     # track the newest release again
 ```
 
 ## Keeping it current

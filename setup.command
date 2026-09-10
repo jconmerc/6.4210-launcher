@@ -103,7 +103,26 @@ source "$VENV/bin/activate" || fail "Could not activate $VENV"
 # ---------------------------------------------------------------- 4. packages
 bold "Installing packages (this pulls Drake and takes a few minutes)..."
 python -m pip install --upgrade pip -q
-python -m pip install "manipulation[all]" jupyterlab || fail "pip install failed -- see the output above."
+# Drake is pinned deliberately. `manipulation` only requires drake>=1.45.0, so a
+# plain install takes whatever is newest -- and drake 1.57.0 (2026-09-10) breaks
+# notebooks that build a diagram, including book/intro/intro.ipynb, with:
+#   Failure at systems/framework/diagram_builder.cc:490 in
+#   ThrowIfInputAlreadyWired()
+# Verified: the same notebooks pass on 1.56.0. Once upstream catches up, drop
+# DRAKE_PIN (or set DRAKE_PIN=drake to track the newest release).
+DRAKE_PIN="${DRAKE_PIN:-drake==1.56.0}"
+echo "drake   pinned to ${DRAKE_PIN#drake==}"
+python -m pip install "manipulation[all]" jupyterlab "$DRAKE_PIN" || fail "pip install failed -- see the output above."
+
+# Register the venv as a *user-level* Jupyter kernel. Editors (Cursor, VS Code)
+# open a bare .ipynb with no workspace folder when launched from a cursor://
+# link, so workspace settings never load -- a global kernelspec is the only
+# thing they can reliably find. Without it the editor offers the bare Homebrew
+# Python, which has no Drake, and cells fail on `import pydrake`.
+python -m ipykernel install --user --name manipulation \
+  --display-name "Robotic Manipulation (Drake)" >/dev/null 2>&1 \
+  && echo "kernel  registered as 'Robotic Manipulation (Drake)'" \
+  || warn "Could not register the Jupyter kernel; select the venv manually in your editor."
 
 # ---------------------------------------------------------------- 5. notebooks
 if [ -d "$REPO_DIR/manipulation/.git" ]; then
