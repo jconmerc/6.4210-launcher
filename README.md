@@ -121,7 +121,12 @@ and the **Due dates** tab: an **open workspace** button, the assignment PDF, and
 every `.py` / `.ipynb` file in that pset. Psets appear as staff release them;
 `./setup.command` (or `git -C handouts pull`) picks up new ones.
 
-Pset chips always open in Cursor (PDFs in your browser), regardless of the
+The assignment PDF is served over http by the Jupyter server (whose root is the
+course folder, so it can reach `handouts/` as well as the notebooks). A `file://`
+link would be simpler but browsers block navigating to one from a page — the
+click silently fails and takes the launcher page down with it.
+
+Other pset chips open in Cursor, regardless of the
 Jupyter/Cursor toggle — pset work is `.py` files you edit, not notebooks. Use
 **open workspace** first: it opens the handouts repo root, which is what carries
 `utils/` (imported by pset code) and the editor settings that select the right

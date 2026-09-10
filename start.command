@@ -55,11 +55,14 @@ echo "Robotic Manipulation  ·  MIT 6.4210/6.4212  ·  Fall 2026"
 echo "python $(python --version 2>&1 | cut -d' ' -f2)  |  drake $(python -c 'from importlib.metadata import version; print(version("drake"))' 2>/dev/null)  |  $(find manipulation/book -name '*.ipynb' -not -path '*/.ipynb_checkpoints/*' | wc -l | tr -d ' ') notebooks"
 echo
 
-cd manipulation/book || exit 1
+# Serve the whole course folder (not just manipulation/book) so the launcher can
+# also hand out the pset PDFs and code over http. Browsers refuse to navigate to
+# file:// links clicked from a page, so http is the only reliable way to open
+# them -- a file:// chip silently fails and drops the page.
 jupyter lab --no-browser --port="$PORT" --IdentityProvider.token="$TOKEN" \
+  --ServerApp.root_dir="$COURSE_DIR" \
   > "$COURSE_DIR/launcher/jupyter.log" 2>&1 &
 JPID=$!
-cd "$COURSE_DIR" || exit 1
 
 printf "Starting Jupyter on port %s" "$PORT"
 for _ in $(seq 1 60); do

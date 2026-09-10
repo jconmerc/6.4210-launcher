@@ -63,7 +63,7 @@ def discover_server():
     except Exception:
         return None, None
     for line in out.splitlines():
-        if "manipulation/book" in line or str(BOOK) in line:
+        if str(COURSE) in line or "manipulation/book" in line:
             m = re.search(r"http://localhost:(\d+)/\?token=(\w+)", line)
             if m:
                 return m.group(1), m.group(2)
@@ -129,7 +129,8 @@ def main():
     def nb_link(label, rel):
         """A chip carrying both targets; the page's toggle picks which is live."""
         cur = "cursor://file" + urllib.parse.quote(str(BOOK / rel))
-        jup = f"{base}/{rel}{suffix}" if base else ""
+        # Server root is the course folder, so notebook paths are prefixed.
+        jup = f"{base}/manipulation/book/{rel}{suffix}" if base else ""
         return (f'<a class="chip nb" data-j="{jup}" data-c="{cur}" '
                 f'href="{jup or cur}">{html.escape(label)}</a>')
 
@@ -161,8 +162,13 @@ def main():
                 f'title="Open the handouts repo as a Cursor workspace '
                 f'(gives you utils/ and the right interpreter)">open workspace</a>']
         for f in ps["pdf"]:
-            bits.append(f'<a class="chip pdf" target="_blank" '
-                        f'href="file://{urllib.parse.quote(str(f))}">{html.escape(f.name)}</a>')
+            # Served over http by Jupyter when it is running: a file:// link is
+            # blocked by browsers when clicked from a page, which kills the tab.
+            rel = urllib.parse.quote(str(f.relative_to(COURSE)))
+            href = (f"http://localhost:{port}/files/{rel}{suffix}" if port
+                    else "file://" + urllib.parse.quote(str(f)))
+            bits.append(f'<a class="chip pdf" target="_blank" rel="noopener" '
+                        f'href="{href}">{html.escape(f.name)}</a>')
         for f in ps["code"] + ps["nb"]:
             bits.append(f'<a class="chip code" href="{cursor_url(f)}">'
                         f'{html.escape(f.name)}</a>')
