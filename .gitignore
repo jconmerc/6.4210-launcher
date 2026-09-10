@@ -1,0 +1,13 @@
+# Cloned upstream textbook/notebook repo (fetched by setup.command)
+manipulation/
+
+# Generated at setup / launch time
+launcher/schedule.html
+launcher/schedule.json
+launcher/index.html
+launcher/jupyter.log
+
+# Local Python cruft
+__pycache__/
+*.pyc
+.DS_Store

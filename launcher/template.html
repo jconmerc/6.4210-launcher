@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6.4210 Robotic Manipulation — Launcher</title>
+<style>
+  :root{
+    --bg:#f6f6f4; --card:#fff; --ink:#16181d; --muted:#6b7280; --line:#e3e3df;
+    --accent:#A31F34; --accent-soft:#fdeef0; --chip:#f0f1f3; --chip-ink:#26282e;
+    --lect:#2c5aa0; --lect-soft:#eef3fb;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#141518; --card:#1c1e23; --ink:#e8e9ec; --muted:#9aa0aa; --line:#2b2e35;
+      --accent:#ff6b81; --accent-soft:#33191f; --chip:#282b32; --chip-ink:#dfe1e6;
+      --lect:#7fa8e8; --lect-soft:#1b2634;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 80px}
+
+  header.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:4px}
+  h1{font-size:22px;margin:0;letter-spacing:-.01em}
+  .term{color:var(--muted);font-size:14px}
+  .meta{color:var(--muted);font-size:13px;margin:6px 0 18px}
+  .meta a{color:var(--accent);text-decoration:none}
+  .meta a:hover{text-decoration:underline}
+  .warn{color:var(--accent);font-weight:600}
+
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0 12px}
+  .tab{border:1px solid var(--line);background:var(--card);color:var(--ink);
+    padding:6px 14px;border-radius:99px;cursor:pointer;font-size:14px}
+  .tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+  #q{flex:1;min-width:180px;padding:7px 12px;border:1px solid var(--line);
+    border-radius:99px;background:var(--card);color:var(--ink);font-size:14px}
+  #jump{margin-left:auto;border:1px solid var(--line);background:var(--card);
+    color:var(--ink);padding:6px 12px;border-radius:99px;cursor:pointer;font-size:13px}
+
+  section.week,section.chapter{background:var(--card);border:1px solid var(--line);
+    border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  section.week header,section.chapter header{display:flex;align-items:center;gap:10px;
+    margin-bottom:8px}
+  .wnum,.cnum{font-weight:650;font-size:15px}
+  .cnum{color:var(--muted);font-variant-numeric:tabular-nums;min-width:44px}
+  .wdate{color:var(--muted);font-size:13px}
+  .badge{display:none;margin-left:auto;background:var(--accent);color:#fff;
+    font-size:11px;font-weight:650;padding:3px 9px;border-radius:99px;letter-spacing:.02em}
+  .week.now{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .week.now .badge{display:inline-block}
+  .week.past{opacity:.5}
+  section.chapter h3{font-size:15px;margin:0;font-weight:600}
+  .notes{margin-left:auto;font-size:12px;color:var(--muted);text-decoration:none}
+  .notes:hover{color:var(--accent)}
+
+  .day{display:flex;gap:14px;padding:6px 0;border-top:1px solid var(--line)}
+  .day:first-of-type{border-top:0}
+  .dayname{min-width:66px;color:var(--muted);font-size:13px;padding-top:2px;
+    font-variant-numeric:tabular-nums}
+  .items{flex:1;display:flex;flex-direction:column;gap:6px}
+  .item{font-size:14px}
+  .item.lecture{color:var(--ink)}
+  .item.lecture b{color:var(--lect)}
+  .item.pset b,.item.due b{color:var(--accent)}
+  .item.pset,.item.due{color:var(--accent);font-weight:500}
+  .item.quiz{color:var(--accent);font-weight:650}
+  .item.off,.item.inst,.item.rec,.item.misc{color:var(--muted);font-size:13px}
+
+  .links{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+  .sub{margin-top:10px;font-size:12px;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.05em}
+  .chip{display:inline-block;background:var(--chip);color:var(--chip-ink);
+    border-radius:7px;padding:3px 9px;font-size:12.5px;text-decoration:none;
+    border:1px solid transparent}
+  .chip:hover{border-color:var(--accent);color:var(--accent)}
+  .chip.ch{background:var(--lect-soft);color:var(--lect)}
+  .chip.dead{opacity:.45;cursor:not-allowed}
+  .empty{color:var(--muted);font-size:13px}
+  .hide{display:none !important}
+  footer{color:var(--muted);font-size:12px;margin-top:24px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Robotic Manipulation</h1>
+    <span class="term">6.4210 / 6.4212 &middot; Fall 2026</span>
+  </header>
+  <div class="meta">
+    Jupyter: {{SERVER}} &middot; {{TOTAL}} notebooks &middot;
+    psets: <a href="{{HANDOUTS}}" target="_blank">handouts repo ↗</a> &middot;
+    <span id="status"></span>
+  </div>
+
+  <div class="bar">
+    <button class="tab" id="tab-weeks" aria-selected="true">By week</button>
+    <button class="tab" id="tab-chapters" aria-selected="false">By chapter</button>
+    <input id="q" placeholder="Filter notebooks and topics…" autocomplete="off">
+    <button id="jump">Jump to this week</button>
+  </div>
+
+  <div id="weeks">{{WEEKS}}</div>
+  <div id="chapters" class="hide">{{CHAPTERS}}</div>
+
+  <footer>Generated {{GENERATED}} · rebuilt each time you run start.command</footer>
+</div>
+
+<script>
+(function(){
+  // ---- current week: computed live, so the highlight never goes stale ----
+  var today = new Date(); today.setHours(0,0,0,0);
+  var weeks = [].slice.call(document.querySelectorAll('.week'));
+  var current = null;
+  weeks.forEach(function(w){
+    var s = new Date(w.dataset.start + 'T00:00:00');
+    var e = new Date(w.dataset.end + 'T00:00:00');
+    if (today > e) w.classList.add('past');
+    if (today >= s && today <= e) { w.classList.add('now'); current = w; }
+  });
+  var status = document.getElementById('status');
+  if (current) {
+    status.textContent = 'Week ' + (weeks.indexOf(current)+1) + ' of ' + weeks.length;
+  } else if (weeks.length && today < new Date(weeks[0].dataset.start+'T00:00:00')) {
+    status.textContent = 'Term has not started';
+  } else {
+    status.textContent = 'Term complete';
+  }
+
+  function scrollToCurrent(){
+    if (current) current.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+  document.getElementById('jump').onclick = scrollToCurrent;
+  if (current) setTimeout(scrollToCurrent, 120);
+
+  // ---- tabs ----
+  var tw = document.getElementById('tab-weeks'), tc = document.getElementById('tab-chapters');
+  var pw = document.getElementById('weeks'), pc = document.getElementById('chapters');
+  function show(which){
+    var w = which === 'weeks';
+    tw.setAttribute('aria-selected', w); tc.setAttribute('aria-selected', !w);
+    pw.classList.toggle('hide', !w); pc.classList.toggle('hide', w);
+  }
+  tw.onclick = function(){ show('weeks'); }; tc.onclick = function(){ show('chapters'); };
+
+  // ---- filter ----
+  var q = document.getElementById('q');
+  q.oninput = function(){
+    var v = q.value.trim().toLowerCase();
+    [].forEach.call(document.querySelectorAll('#weeks .week, #chapters .chapter'), function(sec){
+      if (!v) { sec.classList.remove('hide'); return; }
+      sec.classList.toggle('hide', sec.textContent.toLowerCase().indexOf(v) === -1);
+    });
+  };
+  q.onkeydown = function(e){ if (e.key === 'Escape') { q.value=''; q.oninput(); } };
+})();
+</script>
+</body>
+</html>
