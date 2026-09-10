@@ -37,6 +37,12 @@
   .tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
   #q{flex:1;min-width:180px;padding:7px 12px;border:1px solid var(--line);
     border-radius:99px;background:var(--card);color:var(--ink);font-size:14px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:99px;
+    overflow:hidden;background:var(--card)}
+  .seglabel{color:var(--muted);font-size:13px}
+  .segbtn{border:0;background:transparent;color:var(--ink);font-size:13px;
+    padding:6px 12px;cursor:pointer}
+  .segbtn[aria-selected="true"]{background:var(--accent);color:#fff}
   #jump{margin-left:auto;border:1px solid var(--line);background:var(--card);
     color:var(--ink);padding:6px 12px;border-radius:99px;cursor:pointer;font-size:13px}
 
@@ -119,6 +125,11 @@
     <button class="tab" id="tab-chapters" aria-selected="false">By chapter</button>
     <button class="tab" id="tab-due" aria-selected="false">Due dates</button>
     <input id="q" placeholder="Filter notebooks and topics…" autocomplete="off">
+    <span class="seglabel">Open in</span>
+    <span class="seg">
+      <button class="segbtn" id="oi-j" aria-selected="true">Jupyter</button>
+      <button class="segbtn" id="oi-c" aria-selected="false">Cursor</button>
+    </span>
     <button id="jump">Jump to this week</button>
   </div>
 
@@ -172,6 +183,33 @@
   Object.keys(panels).forEach(function(k){
     panels[k][0].onclick = function(){ show(k); };
   });
+
+  // ---- open-in target: Jupyter tab, or Cursor via the cursor:// scheme ----
+  var oij = document.getElementById('oi-j'), oic = document.getElementById('oi-c');
+  function applyOpenIn(mode){
+    oij.setAttribute('aria-selected', mode === 'jupyter');
+    oic.setAttribute('aria-selected', mode === 'cursor');
+    [].forEach.call(document.querySelectorAll('a.chip.nb'), function(a){
+      var j = a.dataset.j, c = a.dataset.c;
+      if (mode === 'cursor') {
+        a.href = c; a.removeAttribute('target'); a.classList.remove('dead');
+        a.title = 'Open in Cursor';
+      } else if (j) {
+        a.href = j; a.setAttribute('target', '_blank'); a.classList.remove('dead');
+        a.title = 'Open in JupyterLab';
+      } else {
+        // no Jupyter server was running when this page was built
+        a.href = '#'; a.classList.add('dead');
+        a.title = 'Jupyter is not running — switch to Cursor, or run start.command';
+      }
+    });
+    try { localStorage.setItem('openIn', mode); } catch (e) {}
+  }
+  var saved = 'jupyter';
+  try { saved = localStorage.getItem('openIn') || 'jupyter'; } catch (e) {}
+  applyOpenIn(saved);
+  oij.onclick = function(){ applyOpenIn('jupyter'); };
+  oic.onclick = function(){ applyOpenIn('cursor'); };
 
   // ---- due dates: relative timing computed live ----
   var DAY = 86400000, next = null;

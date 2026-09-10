@@ -13,6 +13,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import urllib.parse
 
 HERE = pathlib.Path(__file__).resolve().parent
 COURSE = HERE.parent
@@ -106,10 +107,11 @@ def main():
     suffix = f"?token={token}" if token else ""
 
     def nb_link(label, rel):
-        if not base:
-            return f'<span class="chip dead" title="Jupyter not running">{html.escape(label)}</span>'
-        return (f'<a class="chip" target="_blank" href="{base}/{rel}{suffix}">'
-                f'{html.escape(label)}</a>')
+        """A chip carrying both targets; the page's toggle picks which is live."""
+        cur = "cursor://file" + urllib.parse.quote(str(BOOK / rel))
+        jup = f"{base}/{rel}{suffix}" if base else ""
+        return (f'<a class="chip nb" data-j="{jup}" data-c="{cur}" '
+                f'href="{jup or cur}">{html.escape(label)}</a>')
 
     # ---------- weeks ----------
     DAYNAME = ["Mon", "Tue", "Wed", "Thu", "Fri"]

@@ -42,7 +42,10 @@ Plus a filter box across all three views.
 - **Apple Silicon Mac (arm64), macOS 15 or newer.** Drake publishes macOS wheels
   for `arm64` + `macosx_15_0` only — there is no Intel macOS wheel. On an Intel
   Mac or on Windows, use Ubuntu / WSL2 and follow Drake's own install docs.
-- **Homebrew** ([brew.sh](https://brew.sh)) — used to install Python 3.13.
+- **Homebrew** ([brew.sh](https://brew.sh)) — used to install Python 3.13 and Graphviz.
+- **Graphviz** — installed by `setup.command`. Notebooks that draw system
+  diagrams shell out to the `dot` binary; it is a system package, not a pip one,
+  so it is easy to miss. 18 notebooks fail without it.
 - ~4 GB of disk (packages + prefetched models).
 
 ## Quickstart
@@ -55,6 +58,15 @@ cd manipulation-launcher
 ```
 
 Or just double-click `setup.command` then `start.command` in Finder.
+
+### Prefer an editor over JupyterLab?
+
+You don't have to use Jupyter at all. Cursor and VS Code open `.ipynb` files
+natively — point the kernel picker at `~/.venvs/manipulation/bin/python` and run
+cells there. The launcher page has an **Open in: Jupyter | Cursor** toggle: in
+Cursor mode every notebook chip becomes a `cursor://` link that opens the file
+straight in the editor (and works whether or not a Jupyter server is running).
+Your choice is remembered per browser.
 
 ## Two things that will bite you if you deviate
 
@@ -150,6 +162,13 @@ spaces or parentheses. See constraint 2 above.
 Jupyter server was running. Re-run `start.command`.
 
 **A notebook stalls on first run** — it's downloading models. Run the prefetch.
+
+**`FileNotFoundError: [Errno 2] "dot" not found in path`** — Graphviz is missing:
+`brew install graphviz`. Affects any cell calling `RenderDiagram(...)`.
+
+**`gymnasium_robotics.ipynb` fails with a checksum mismatch** — an upstream
+issue, not a local one: Drake pins a SHA256 for the Gymnasium-Robotics tarball
+that GitHub's generated archive no longer matches. Skip that notebook.
 
 ## Credits
 

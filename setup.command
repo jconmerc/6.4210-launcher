@@ -65,6 +65,23 @@ then re-run this script."
 fi
 echo "python  $PY ($("$PY" --version 2>&1 | cut -d' ' -f2))"
 
+# ---------------------------------------------------------------- 2b. graphviz
+# Notebooks that draw system diagrams (RenderDiagram / plot_system_graphviz) call
+# pydot, which shells out to the `dot` binary. That is a system package, not a
+# pip one, so it has to be installed separately -- 18 notebooks fail without it
+# with: FileNotFoundError: [Errno 2] "dot" not found in path.
+if command -v dot >/dev/null 2>&1; then
+  echo "dot     $(command -v dot)"
+else
+  warn "Graphviz ('dot') is not installed. Notebooks that render system diagrams"
+  warn "will fail without it (18 of them, including several in Chapter 2)."
+  if command -v brew >/dev/null 2>&1 && ask "Install graphviz with Homebrew now?"; then
+    brew install graphviz || warn "brew install graphviz failed; diagram cells will error."
+  else
+    warn "Skipping. Install it later with: brew install graphviz"
+  fi
+fi
+
 # ---------------------------------------------------------------- 3. venv
 case "$VENV" in
   *[\ \(\)]*) fail "The virtualenv path must not contain spaces or parentheses:
@@ -129,6 +146,8 @@ print(f"  python       {platform.python_version()}")
 print(f"  drake        {version('drake')}")
 print(f"  manipulation {version('manipulation')}")
 print("  model load   OK")
+import shutil
+print(f"  graphviz     {'OK' if shutil.which('dot') else 'MISSING (diagram cells will fail)'}")
 PY
 
 echo
