@@ -113,6 +113,14 @@ def main():
 
     # ---------- weeks ----------
     DAYNAME = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+    due_by_no = {}
+    for dl in schedule.get("deadlines", []):
+        m = re.match(r"Problem Set (\d+)", dl.get("label") or "")
+        if m:
+            due_by_no[int(m.group(1))] = dl["date"]
+
+    def fmt(iso):
+        return datetime.date.fromisoformat(iso).strftime("%a %b %-d")
     weeks_html = []
     for i, w in enumerate(schedule["weeks"], 1):
         start = datetime.date.fromisoformat(w["start"])
@@ -144,11 +152,25 @@ def main():
                 label = e.get("label", "")
                 cls = {"assignment": "pset", "quiz": "quiz", "deadline": "due",
                        "holiday": "off", "nolecture": "off", "norecitation": "off",
-                       "institute": "inst", "recitation": "rec"}.get(t, "misc")
-                head = f"<b>{html.escape(label)}</b> " if label else ""
-                items.append(
-                    f'<div class="item {cls}">{head}{html.escape(e["description"])}</div>'
-                )
+                       "institute": "inst", "recitation": "rec",
+                       "assignment_out": "psetout"}.get(t, "misc")
+                if t == "assignment":
+                    tail = (f' <span class="note">out {fmt(e["out"])}</span>'
+                            if e.get("out") else "")
+                    items.append(
+                        f'<div class="item {cls}"><b>{html.escape(label)} due</b> '
+                        f'{html.escape(e["description"])}{tail}</div>')
+                elif t == "assignment_out":
+                    due = due_by_no.get(e.get("number"))
+                    tail = (f' <span class="note">\u00b7 due {fmt(due)}</span>'
+                            if due else "")
+                    items.append(
+                        f'<div class="item {cls}"><b>{html.escape(label)}</b> '
+                        f'handed out{tail}</div>')
+                else:
+                    head = f"<b>{html.escape(label)}</b> " if label else ""
+                    items.append(
+                        f'<div class="item {cls}">{head}{html.escape(e["description"])}</div>')
             if items:
                 rows.append(
                     f'<div class="day"><div class="dayname">{DAYNAME[d.weekday()]} '
@@ -192,6 +214,25 @@ def main():
             f'<div class="links">{links}</div></section>'
         )
 
+    # ---------- deadlines ----------
+    dl_rows = []
+    for dl in schedule.get("deadlines", []):
+        d = datetime.date.fromisoformat(dl["date"])
+        kind = {"assignment": "pset", "quiz": "quiz", "deadline": "due"}.get(
+            dl["type"], "misc")
+        name = dl["label"] or ("Quiz" if dl["type"] == "quiz" else "Deadline")
+        out = (f'<span class="note">out {fmt(dl["out"])}</span>'
+               if dl.get("out") else "")
+        dl_rows.append(
+            f'<div class="dl {kind}" data-date="{dl["date"]}">'
+            f'<span class="dl-date">{d.strftime("%a %b %-d")}</span>'
+            f'<span class="dl-name">{html.escape(name)}</span>'
+            f'<span class="dl-desc">{html.escape(dl["description"])} {out}</span>'
+            f'<span class="dl-when"></span></div>')
+    deadlines_html = ('<section class="chapter"><header><h3>All due dates</h3>'
+                      '<a class="notes" target="_blank" href="{{HANDOUTS}}">handouts repo \u2197</a>'
+                      '</header>' + "".join(dl_rows) + "</section>")
+
     total = sum(len(v["main"]) + len(v["exercises"]) for v in notebooks.values())
     server_line = (
         f'<a href="http://localhost:{port}/lab{suffix}" target="_blank">localhost:{port}</a>'
@@ -202,6 +243,7 @@ def main():
     out = (tpl
            .replace("{{WEEKS}}", "\n".join(weeks_html))
            .replace("{{CHAPTERS}}", "\n".join(chap_html))
+           .replace("{{DEADLINES}}", deadlines_html)
            .replace("{{SERVER}}", server_line)
            .replace("{{TOTAL}}", str(total))
            .replace("{{HANDOUTS}}", schedule.get("handouts_repo") or "")

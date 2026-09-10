@@ -78,6 +78,25 @@
   .chip:hover{border-color:var(--accent);color:var(--accent)}
   .chip.ch{background:var(--lect-soft);color:var(--lect)}
   .chip.dead{opacity:.45;cursor:not-allowed}
+  .item.psetout{color:var(--muted);font-size:13px}
+  .item.psetout b{color:var(--muted)}
+  .note{font-size:12px;color:var(--muted);font-weight:400;white-space:nowrap}
+
+  .dl{display:flex;align-items:baseline;gap:12px;padding:8px 0;
+    border-top:1px solid var(--line);font-size:14px;flex-wrap:wrap}
+  .dl:first-of-type{border-top:0}
+  .dl-date{min-width:86px;color:var(--muted);font-variant-numeric:tabular-nums;
+    font-size:13px}
+  .dl-name{font-weight:650;min-width:112px}
+  .dl.pset .dl-name,.dl.due .dl-name{color:var(--accent)}
+  .dl.quiz .dl-name{color:var(--accent)}
+  .dl-desc{flex:1;min-width:140px;color:var(--ink)}
+  .dl-when{margin-left:auto;padding-left:10px;font-size:12px;color:var(--muted);
+    white-space:nowrap;font-variant-numeric:tabular-nums}
+  .dl.past{opacity:.45}
+  .dl.next{background:var(--accent-soft);margin:0 -8px;padding-left:8px;
+    padding-right:8px;border-radius:8px}
+  .dl.next .dl-when{color:var(--accent);font-weight:650}
   .empty{color:var(--muted);font-size:13px}
   .hide{display:none !important}
   footer{color:var(--muted);font-size:12px;margin-top:24px;text-align:center}
@@ -92,18 +111,20 @@
   <div class="meta">
     Jupyter: {{SERVER}} &middot; {{TOTAL}} notebooks &middot;
     psets: <a href="{{HANDOUTS}}" target="_blank">handouts repo ↗</a> &middot;
-    <span id="status"></span>
+    <span id="status"></span><span id="nextdue"></span>
   </div>
 
   <div class="bar">
     <button class="tab" id="tab-weeks" aria-selected="true">By week</button>
     <button class="tab" id="tab-chapters" aria-selected="false">By chapter</button>
+    <button class="tab" id="tab-due" aria-selected="false">Due dates</button>
     <input id="q" placeholder="Filter notebooks and topics…" autocomplete="off">
     <button id="jump">Jump to this week</button>
   </div>
 
   <div id="weeks">{{WEEKS}}</div>
   <div id="chapters" class="hide">{{CHAPTERS}}</div>
+  <div id="due" class="hide">{{DEADLINES}}</div>
 
   <footer>Generated {{GENERATED}} · rebuilt each time you run start.command</footer>
 </div>
@@ -136,20 +157,46 @@
   if (current) setTimeout(scrollToCurrent, 120);
 
   // ---- tabs ----
-  var tw = document.getElementById('tab-weeks'), tc = document.getElementById('tab-chapters');
-  var pw = document.getElementById('weeks'), pc = document.getElementById('chapters');
+  var panels = {
+    weeks:    [document.getElementById('tab-weeks'),    document.getElementById('weeks')],
+    chapters: [document.getElementById('tab-chapters'), document.getElementById('chapters')],
+    due:      [document.getElementById('tab-due'),      document.getElementById('due')]
+  };
   function show(which){
-    var w = which === 'weeks';
-    tw.setAttribute('aria-selected', w); tc.setAttribute('aria-selected', !w);
-    pw.classList.toggle('hide', !w); pc.classList.toggle('hide', w);
+    Object.keys(panels).forEach(function(k){
+      var on = (k === which);
+      panels[k][0].setAttribute('aria-selected', on);
+      panels[k][1].classList.toggle('hide', !on);
+    });
   }
-  tw.onclick = function(){ show('weeks'); }; tc.onclick = function(){ show('chapters'); };
+  Object.keys(panels).forEach(function(k){
+    panels[k][0].onclick = function(){ show(k); };
+  });
+
+  // ---- due dates: relative timing computed live ----
+  var DAY = 86400000, next = null;
+  [].forEach.call(document.querySelectorAll('.dl'), function(row){
+    var due = new Date(row.dataset.date + 'T00:00:00');
+    var days = Math.round((due - today) / DAY);
+    var when = row.querySelector('.dl-when');
+    if (days < 0)       { row.classList.add('past'); when.textContent = ''; }
+    else if (days === 0){ when.textContent = 'today'; }
+    else if (days === 1){ when.textContent = 'tomorrow'; }
+    else                { when.textContent = 'in ' + days + ' days'; }
+    if (days >= 0 && !next) { next = row; row.classList.add('next'); }
+  });
+  if (next) {
+    var nm = next.querySelector('.dl-name').textContent;
+    var nw = next.querySelector('.dl-when').textContent;
+    var el = document.getElementById('nextdue');
+    if (el) { el.textContent = ' · next: ' + nm + ' ' + nw; }
+  }
 
   // ---- filter ----
   var q = document.getElementById('q');
   q.oninput = function(){
     var v = q.value.trim().toLowerCase();
-    [].forEach.call(document.querySelectorAll('#weeks .week, #chapters .chapter'), function(sec){
+    [].forEach.call(document.querySelectorAll('#weeks .week, #chapters .chapter, #due .dl'), function(sec){
       if (!v) { sec.classList.remove('hide'); return; }
       sec.classList.toggle('hide', sec.textContent.toLowerCase().indexOf(v) === -1);
     });

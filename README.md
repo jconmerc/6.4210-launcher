@@ -19,7 +19,7 @@ offline). Safe to re-run; it skips what's already done.
 port with a fresh token, rebuilds the launcher page against that server, and
 opens it. Ctrl-C shuts everything down.
 
-**The launcher page** — two views over all ~95 notebooks:
+**The launcher page** — three views over the semester and all ~95 notebooks:
 
 - **By week** — the full semester, with **the current week highlighted** and
   scrolled to automatically. Each day shows its lecture, readings, problem sets,
@@ -27,8 +27,15 @@ opens it. Ctrl-C shuts everything down.
   relevant notebooks straight into Jupyter.
 - **By chapter** — every chapter in textbook order, notebooks and exercises
   separated.
+- **Due dates** — every problem set, quiz and project deadline in one
+  chronological list, each with the date it was handed out and a live
+  countdown ("in 6 days"). The next thing due is highlighted and also shown in
+  the page header; past items are dimmed.
 
-Plus a filter box across both views.
+Problem sets appear twice in the week view — on the Wednesday they're handed
+out and on the Thursday they're due — each cross-referencing the other date.
+
+Plus a filter box across all three views.
 
 ## Requirements
 
