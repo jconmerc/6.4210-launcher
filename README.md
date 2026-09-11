@@ -19,7 +19,7 @@ offline). Safe to re-run; it skips what's already done.
 port with a fresh token, rebuilds the launcher page against that server, and
 opens it. Ctrl-C shuts everything down.
 
-**The launcher page** — three views over the semester and all ~95 notebooks:
+**The launcher page** — four views over the semester and all ~95 notebooks:
 
 - **By week** — the full semester, with **the current week highlighted** and
   scrolled to automatically. Each day shows its lecture, readings, problem sets,
@@ -31,6 +31,18 @@ opens it. Ctrl-C shuts everything down.
   chronological list, each with the date it was handed out and a live
   countdown ("in 6 days"). The next thing due is highlighted and also shown in
   the page header; past items are dimmed.
+
+- **Exercises** — all 60 exercises from the reading, numbered as the textbook
+  numbers them (Exercise 1.1, 1.2, …), grouped by chapter and split into
+  *notebook* exercises (with an **open notebook** chip) and *written / reading*
+  exercises, each with a link to it in the online notes. Every lecture in the
+  week view also gets a "Ch. N exercises" chip that jumps straight there.
+
+  These are parsed from the textbook's own HTML, so they track upstream. Two
+  upstream quirks are handled: one chapter leaves its last exercise unclosed
+  (the parser ends an exercise at the next one or the chapter end), and an
+  exercise notebook that no exercise in the reading cites is still listed, under
+  "Other exercise notebooks", rather than hidden.
 
 Problem sets appear twice in the week view — on the Wednesday they're handed
 out and on the Thursday they're due — each cross-referencing the other date.

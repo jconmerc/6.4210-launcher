@@ -111,6 +111,21 @@
     padding-right:8px;border-radius:8px}
   .dl.next .dl-when{color:var(--accent);font-weight:650}
   .empty{color:var(--muted);font-size:13px}
+
+  /* exercises */
+  .ex{display:flex;align-items:baseline;gap:12px;padding:7px 0;
+    border-top:1px solid var(--line);font-size:14px;flex-wrap:wrap}
+  .sub + .ex{border-top:0}
+  .exn{min-width:38px;color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
+  .ext{flex:1;min-width:180px}
+  .exa{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-left:auto}
+  .exnotes{font-size:12px;color:var(--muted);text-decoration:none;white-space:nowrap}
+  .exnotes:hover{color:var(--accent)}
+  .chip.exjump{background:transparent;border:1px dashed var(--line);color:var(--muted)}
+  .chip.exjump:hover{border-color:var(--accent);color:var(--accent)}
+  .exch header .note{margin-left:auto}
+  .flash{animation:flash 1.2s ease-out}
+  @keyframes flash{from{box-shadow:0 0 0 3px var(--accent)}to{box-shadow:0 0 0 0 transparent}}
   .hide{display:none !important}
   footer{color:var(--muted);font-size:12px;margin-top:24px;text-align:center}
 </style>
@@ -131,6 +146,7 @@
     <button class="tab" id="tab-weeks" aria-selected="true">By week</button>
     <button class="tab" id="tab-chapters" aria-selected="false">By chapter</button>
     <button class="tab" id="tab-due" aria-selected="false">Due dates</button>
+    <button class="tab" id="tab-ex" aria-selected="false">Exercises</button>
     <input id="q" placeholder="Filter notebooks and topics…" autocomplete="off">
     <span class="seglabel">Open in</span>
     <span class="seg">
@@ -143,6 +159,7 @@
   <div id="weeks">{{WEEKS}}</div>
   <div id="chapters" class="hide">{{CHAPTERS}}</div>
   <div id="due" class="hide">{{DEADLINES}}</div>
+  <div id="exs" class="hide">{{EXERCISES}}</div>
 
   <footer>Generated {{GENERATED}} · rebuilt each time you run start.command</footer>
 </div>
@@ -178,7 +195,8 @@
   var panels = {
     weeks:    [document.getElementById('tab-weeks'),    document.getElementById('weeks')],
     chapters: [document.getElementById('tab-chapters'), document.getElementById('chapters')],
-    due:      [document.getElementById('tab-due'),      document.getElementById('due')]
+    due:      [document.getElementById('tab-due'),      document.getElementById('due')],
+    ex:       [document.getElementById('tab-ex'),       document.getElementById('exs')]
   };
   function show(which){
     Object.keys(panels).forEach(function(k){
@@ -189,6 +207,22 @@
   }
   Object.keys(panels).forEach(function(k){
     panels[k][0].onclick = function(){ show(k); };
+  });
+
+  // ---- "Ch. N exercises" chips jump to that chapter in the Exercises tab ----
+  [].forEach.call(document.querySelectorAll('a.exjump'), function(a){
+    a.onclick = function(e){
+      e.preventDefault();
+      show('ex');
+      var sec = document.getElementById('ex-' + a.dataset.ch);
+      if (sec) {
+        // land below the sticky toolbar rather than underneath it
+        var bar = document.querySelector('.bar');
+        var y = sec.getBoundingClientRect().top + window.scrollY - (bar ? bar.offsetHeight : 0) - 10;
+        window.scrollTo({top: y, behavior: 'smooth'});
+        sec.classList.remove('flash'); void sec.offsetWidth; sec.classList.add('flash');
+      }
+    };
   });
 
   // ---- open-in target: Jupyter tab, or Cursor via the cursor:// scheme ----
@@ -241,6 +275,15 @@
   var q = document.getElementById('q');
   q.oninput = function(){
     var v = q.value.trim().toLowerCase();
+    [].forEach.call(document.querySelectorAll('#exs .exch'), function(sec){
+      var any = false;
+      [].forEach.call(sec.querySelectorAll('.ex'), function(r){
+        var hit = !v || r.textContent.toLowerCase().indexOf(v) !== -1 ||
+                  sec.querySelector('h3').textContent.toLowerCase().indexOf(v) !== -1;
+        r.classList.toggle('hide', !hit); any = any || hit;
+      });
+      sec.classList.toggle('hide', !any);
+    });
     [].forEach.call(document.querySelectorAll('#weeks .week, #chapters .chapter, #due .dl'), function(sec){
       if (!v) { sec.classList.remove('hide'); return; }
       sec.classList.toggle('hide', sec.textContent.toLowerCase().indexOf(v) === -1);

@@ -86,6 +86,54 @@ def collect_notebooks():
     return found
 
 
+# An exercise ends at </exercise>, the next <exercise>, or the end of the
+# chapter body -- whichever comes first. Upstream occasionally leaves the last
+# one unclosed (clutter.html's "Sampling Antipodal Grasps"); browsers tolerate
+# that, and a strict <exercise>...</exercise> match would silently drop it.
+EXERCISE = re.compile(
+    r"<exercise([^>]*)>(.*?)(?=</exercise>|<exercise[\s>]|</chapter>|"
+    r"<!-- EVERYTHING BELOW THIS LINE|\Z)", re.S)
+# notebook_link('intro', notebook='exercises/02_x', link_text=...) -- the
+# notebook argument is occasionally passed positionally.
+NB_LINK = re.compile(r"notebook_link\(\s*'([^']+)'\s*,\s*(?:notebook\s*=\s*)?'([^']+)'")
+
+
+def collect_exercises(order, num):
+    """Chapter id -> exercises in textbook order, numbered as the book does
+    (Exercise <chapter>.<k>). Read from the local book HTML; links only."""
+    found = {}
+    for cid in order:
+        f = BOOK / f"{cid}.html"
+        if not f.exists():
+            continue
+        src = f.read_text(errors="ignore")
+        exs = []
+        for k, m in enumerate(EXERCISE.finditer(src), 1):
+            attrs, body = m.groups()
+            ident = re.search(r'id="([^"]+)"', attrs)
+            head = re.search(r"<h1>(.*?)</h1>", body, re.S)
+            nbs = []
+            for ch, nb in NB_LINK.findall(body):
+                path = BOOK / ch / f"{nb}.ipynb"
+                rel = str(path.relative_to(BOOK))
+                if path.exists() and rel not in nbs:
+                    nbs.append(rel)
+            exs.append({
+                "number": f"{num.get(cid, '?')}.{k}",
+                "id": ident.group(1) if ident else None,
+                "title": clean(head.group(1)) if head else f"Exercise {k}",
+                "notebooks": nbs,
+            })
+        cited = {r for e in exs for r in e["notebooks"]}
+        orphans = sorted(str(p.relative_to(BOOK)) for p in (BOOK / cid).glob("exercises/*.ipynb")
+                         if str(p.relative_to(BOOK)) not in cited)
+        if exs or orphans:
+            found[cid] = exs
+            if orphans:
+                found.setdefault("_orphans", {})[cid] = orphans
+    return found
+
+
 def collect_psets():
     """Pset number -> its handout files. Read-only: we only ever link to these."""
     found = {}
@@ -122,6 +170,21 @@ def main():
 
     # chapter id -> ordinal, for display ("Ch. 3")
     num = {cid: i + 1 for i, cid in enumerate(order)}
+    exercises = collect_exercises(order, num)
+    orphan_nbs = exercises.pop("_orphans", {})
+    for cid in exercises:
+        titles.setdefault(cid, strip_num(chapter_title(cid)))
+    # exercise notebook path -> "1.2 Drake Systems Fundamentals", so chips can
+    # carry the textbook's own name instead of a prettified file name
+    ex_label = {rel: f'{e["number"]} {e["title"]}'
+                for exs in exercises.values() for e in exs for rel in e["notebooks"]}
+
+    def ex_jump(cid):
+        n = len(exercises.get(cid, []))
+        if not n:
+            return ""
+        return (f'<a class="chip exjump" href="#ex-{cid}" data-ch="{cid}">'
+                f'Ch. {num.get(cid, "?")} exercises ({n})</a>')
 
     base = f"http://localhost:{port}/lab/tree" if port else ""
     suffix = f"?token={token}" if token else ""
@@ -195,7 +258,7 @@ def main():
                     nb_link(lbl, rel)
                     for c in lec["chapters"]
                     for lbl, rel in notebooks.get(c, {}).get("main", [])
-                )
+                ) + "".join(ex_jump(c) for c in lec["chapters"])
                 items.append(
                     f'<div class="item lecture"><b>Lecture {lec["number"]}</b> '
                     f'{html.escape(lec["title"])}'
@@ -249,14 +312,15 @@ def main():
             continue
         nb = notebooks[cid]
         main = "".join(nb_link(l, r) for l, r in nb["main"])
-        ex = "".join(nb_link(l, r) for l, r in nb["exercises"])
+        ex = "".join(nb_link(ex_label.get(r, l), r) for l, r in nb["exercises"])
         chap_html.append(
             f'<section class="chapter"><header><span class="cnum">Ch. {num[cid]}</span>'
             f'<h3>{html.escape(titles[cid])}</h3>'
             f'<a class="notes" target="_blank" href="https://manipulation.mit.edu/{cid}.html">notes ↗</a>'
             f'</header>'
             + (f'<div class="links">{main}</div>' if main else "")
-            + (f'<div class="sub">Exercises / psets</div><div class="links">{ex}</div>' if ex else "")
+            + (f'<div class="sub">Exercise notebooks</div><div class="links">{ex}{ex_jump(cid)}</div>'
+               if ex else (f'<div class="links">{ex_jump(cid)}</div>' if ex_jump(cid) else ""))
             + "</section>"
         )
     # chapters with notebooks but not in the ordered list (template, figures, drafts)
@@ -269,6 +333,51 @@ def main():
             f'<h3>{html.escape(titles[cid])}</h3></header>'
             f'<div class="links">{links}</div></section>'
         )
+
+    # ---------- exercises ----------
+    ex_html = []
+    for cid in order:
+        exs = exercises.get(cid)
+        if not exs and not orphan_nbs.get(cid):
+            continue
+        exs = exs or []
+        with_nb = [e for e in exs if e["notebooks"]]
+        written = [e for e in exs if not e["notebooks"]]
+
+        def row(e):
+            anchor = f'#{e["id"]}' if e["id"] else ""
+            notes = (f'<a class="exnotes" target="_blank" '
+                     f'href="https://manipulation.mit.edu/{cid}.html{anchor}">in notes \u2197</a>')
+            def nb_label(r):
+                if len(e["notebooks"]) == 1:
+                    return "open notebook"
+                ch = r.split("/", 1)[0]
+                stem = pretty(pathlib.Path(r).stem)
+                # say so when an exercise leans on another chapter's notebook
+                return stem if ch == cid else f"{stem} (Ch. {num.get(ch, '?')})"
+            chips = "".join(nb_link(nb_label(r), r) for r in e["notebooks"])
+            return (f'<div class="ex"><span class="exn">{e["number"]}</span>'
+                    f'<span class="ext">{html.escape(e["title"])}</span>'
+                    f'<span class="exa">{chips}{notes}</span></div>')
+
+        groups = ""
+        if with_nb:
+            groups += '<div class="sub">Notebook exercises</div>' + "".join(row(e) for e in with_nb)
+        if written:
+            groups += ('<div class="sub">Written / reading exercises</div>'
+                       + "".join(row(e) for e in written))
+        if orphan_nbs.get(cid):
+            groups += ('<div class="sub">Other exercise notebooks '
+                       '<span class="note">(in the repo, not cited by an exercise in the reading)</span></div>'
+                       + "".join(f'<div class="ex"><span class="exn">\u2013</span>'
+                                 f'<span class="ext">{html.escape(pretty(pathlib.Path(r).stem))}</span>'
+                                 f'<span class="exa">{nb_link("open notebook", r)}</span></div>'
+                                 for r in orphan_nbs[cid]))
+        ex_html.append(
+            f'<section class="chapter exch" id="ex-{cid}"><header>'
+            f'<span class="cnum">Ch. {num[cid]}</span><h3>{html.escape(titles[cid])}</h3>'
+            f'<span class="note">{len(exs)} exercises \u00b7 {len(with_nb)} with notebooks</span>'
+            f'</header>{groups}</section>')
 
     # ---------- deadlines ----------
     dl_rows = []
@@ -302,6 +411,7 @@ def main():
            .replace("{{WEEKS}}", "\n".join(weeks_html))
            .replace("{{CHAPTERS}}", "\n".join(chap_html))
            .replace("{{DEADLINES}}", deadlines_html)
+           .replace("{{EXERCISES}}", "\n".join(ex_html))
            .replace("{{SERVER}}", server_line)
            .replace("{{TOTAL}}", str(total))
            .replace("{{HANDOUTS}}", schedule.get("handouts_repo") or "")
@@ -309,6 +419,7 @@ def main():
     (HERE / "index.html").write_text(out)
     print(f"built {HERE/'index.html'}  ({total} notebooks, "
           f"{len(psets)} pset{'' if len(psets) == 1 else 's'}, "
+          f"{sum(map(len, exercises.values()))} exercises, "
           f"{'server ' + str(port) if port else 'no server'})")
 
 
