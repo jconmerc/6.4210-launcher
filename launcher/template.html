@@ -146,6 +146,7 @@
     <button class="tab" id="tab-weeks" aria-selected="true">By week</button>
     <button class="tab" id="tab-chapters" aria-selected="false">By chapter</button>
     <button class="tab" id="tab-due" aria-selected="false">Due dates</button>
+    <button class="tab" id="tab-exm" aria-selected="false">Examples</button>
     <button class="tab" id="tab-ex" aria-selected="false">Exercises</button>
     <input id="q" placeholder="Filter notebooks and topics…" autocomplete="off">
     <span class="seglabel">Open in</span>
@@ -159,6 +160,7 @@
   <div id="weeks">{{WEEKS}}</div>
   <div id="chapters" class="hide">{{CHAPTERS}}</div>
   <div id="due" class="hide">{{DEADLINES}}</div>
+  <div id="exm" class="hide">{{EXAMPLES}}</div>
   <div id="exs" class="hide">{{EXERCISES}}</div>
 
   <footer>Generated {{GENERATED}} · rebuilt each time you run start.command</footer>
@@ -196,6 +198,7 @@
     weeks:    [document.getElementById('tab-weeks'),    document.getElementById('weeks')],
     chapters: [document.getElementById('tab-chapters'), document.getElementById('chapters')],
     due:      [document.getElementById('tab-due'),      document.getElementById('due')],
+    exm:      [document.getElementById('tab-exm'),      document.getElementById('exm')],
     ex:       [document.getElementById('tab-ex'),       document.getElementById('exs')]
   };
   function show(which){
@@ -213,8 +216,9 @@
   [].forEach.call(document.querySelectorAll('a.exjump'), function(a){
     a.onclick = function(e){
       e.preventDefault();
-      show('ex');
-      var sec = document.getElementById('ex-' + a.dataset.ch);
+      var panel = a.dataset.panel || 'ex';
+      show(panel);
+      var sec = document.getElementById(panel + '-' + a.dataset.ch);
       if (sec) {
         // land below the sticky toolbar rather than underneath it
         var bar = document.querySelector('.bar');
@@ -275,7 +279,7 @@
   var q = document.getElementById('q');
   q.oninput = function(){
     var v = q.value.trim().toLowerCase();
-    [].forEach.call(document.querySelectorAll('#exs .exch'), function(sec){
+    [].forEach.call(document.querySelectorAll('.exch'), function(sec){
       var any = false;
       [].forEach.call(sec.querySelectorAll('.ex'), function(r){
         var hit = !v || r.textContent.toLowerCase().indexOf(v) !== -1 ||

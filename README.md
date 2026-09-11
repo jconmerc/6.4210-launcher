@@ -19,7 +19,7 @@ offline). Safe to re-run; it skips what's already done.
 port with a fresh token, rebuilds the launcher page against that server, and
 opens it. Ctrl-C shuts everything down.
 
-**The launcher page** — four views over the semester and all ~95 notebooks:
+**The launcher page** — five views over the semester and all ~95 notebooks:
 
 - **By week** — the full semester, with **the current week highlighted** and
   scrolled to automatically. Each day shows its lecture, readings, problem sets,
@@ -32,14 +32,24 @@ opens it. Ctrl-C shuts everything down.
   countdown ("in 6 days"). The next thing due is highlighted and also shown in
   the page header; past items are dimmed.
 
+- **Examples** — all 88 worked examples from the reading ("Example 2.2
+  Simulating the passive iiwa"), numbered as the book numbers them and grouped
+  by chapter, each with an **open notebook** chip for the local copy. This is
+  the local replacement for the textbook's "Open in Colab" buttons. Colab
+  titles every notebook in a chapter with the chapter name ("Robotic
+  Manipulation - Let's get you a robot.ipynb" covers four different notebooks),
+  so the example number is the reliable way to find the file. Chapter-view chips
+  also list the examples that use each notebook ("Inspector · Ex 2.1, 2.5, 5.3").
 - **Exercises** — all 60 exercises from the reading, numbered as the textbook
   numbers them (Exercise 1.1, 1.2, …), grouped by chapter and split into
   *notebook* exercises (with an **open notebook** chip) and *written / reading*
   exercises, each with a link to it in the online notes. Every lecture in the
   week view also gets a "Ch. N exercises" chip that jumps straight there.
 
-  These are parsed from the textbook's own HTML, so they track upstream. Two
-  upstream quirks are handled: one chapter leaves its last exercise unclosed
+  Examples and exercises are parsed from the textbook's own HTML, so they track
+  upstream. Notebook links follow `book/notebooks.js` exactly: the notebook
+  argument is positional, quoting varies, and `notebook_link('intro')` alone
+  means `intro/intro.ipynb`. Two upstream quirks are handled: one chapter leaves its last exercise unclosed
   (the parser ends an exercise at the next one or the chapter end), and an
   exercise notebook that no exercise in the reading cites is still listed, under
   "Other exercise notebooks", rather than hidden.

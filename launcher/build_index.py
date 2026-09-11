@@ -86,52 +86,71 @@ def collect_notebooks():
     return found
 
 
-# An exercise ends at </exercise>, the next <exercise>, or the end of the
-# chapter body -- whichever comes first. Upstream occasionally leaves the last
-# one unclosed (clutter.html's "Sampling Antipodal Grasps"); browsers tolerate
-# that, and a strict <exercise>...</exercise> match would silently drop it.
-EXERCISE = re.compile(
-    r"<exercise([^>]*)>(.*?)(?=</exercise>|<exercise[\s>]|</chapter>|"
-    r"<!-- EVERYTHING BELOW THIS LINE|\Z)", re.S)
-# notebook_link('intro', notebook='exercises/02_x', link_text=...) -- the
-# notebook argument is occasionally passed positionally.
-NB_LINK = re.compile(r"notebook_link\(\s*'([^']+)'\s*,\s*(?:notebook\s*=\s*)?'([^']+)'")
+# A block (exercise / example) ends at its closing tag, the next block of the
+# same kind, or the end of the chapter body -- whichever comes first. Upstream
+# occasionally leaves the last one unclosed (clutter.html's "Sampling Antipodal
+# Grasps" exercise); browsers tolerate that, and a strict open...close match
+# would silently drop it.
+def block_re(tag):
+    return re.compile(
+        rf"<{tag}([^>]*)>(.*?)(?=</{tag}>|<{tag}[\s>]|</chapter>|"
+        r"<!-- EVERYTHING BELOW THIS LINE|\Z)", re.S)
 
 
-def collect_exercises(order, num):
-    """Chapter id -> exercises in textbook order, numbered as the book does
-    (Exercise <chapter>.<k>). Read from the local book HTML; links only."""
+# Mirrors book/notebooks.js: notebook_link(chapter, notebook, link_text) opens
+# book/<chapter>/<notebook || chapter>.ipynb. The notebook argument is
+# positional; call sites that write `notebook='x'` are a JS assignment that just
+# evaluates to 'x'. Quotes vary (' or "), and a lone notebook_link('intro')
+# means intro/intro.ipynb.
+NB_LINK = re.compile(
+    r"""notebook_link\(\s*(['"])([^'"]+)\1"""
+    r"""(?:\s*,\s*(?:notebook\s*=\s*)?(['"])([^'"]+)\3)?""")
+
+
+def collect_blocks(tag, order, num):
+    """Chapter id -> <tag> blocks in textbook order, numbered as the book does
+    (e.g. Example 2.1, Exercise 2.1 -- separate counters per kind). Read from
+    the local book HTML; we only ever link to what it cites."""
+    pat = block_re(tag)
     found = {}
     for cid in order:
         f = BOOK / f"{cid}.html"
         if not f.exists():
             continue
         src = f.read_text(errors="ignore")
-        exs = []
-        for k, m in enumerate(EXERCISE.finditer(src), 1):
+        blocks = []
+        for k, m in enumerate(pat.finditer(src), 1):
             attrs, body = m.groups()
             ident = re.search(r'id="([^"]+)"', attrs)
             head = re.search(r"<h1>(.*?)</h1>", body, re.S)
             nbs = []
-            for ch, nb in NB_LINK.findall(body):
-                path = BOOK / ch / f"{nb}.ipynb"
+            for _, ch, _, nb in NB_LINK.findall(body):
+                path = BOOK / ch / f"{nb or ch}.ipynb"
                 rel = str(path.relative_to(BOOK))
                 if path.exists() and rel not in nbs:
                     nbs.append(rel)
-            exs.append({
+            blocks.append({
                 "number": f"{num.get(cid, '?')}.{k}",
                 "id": ident.group(1) if ident else None,
-                "title": clean(head.group(1)) if head else f"Exercise {k}",
+                "title": clean(head.group(1)) if head else f"{tag.title()} {k}",
                 "notebooks": nbs,
             })
-        cited = {r for e in exs for r in e["notebooks"]}
-        orphans = sorted(str(p.relative_to(BOOK)) for p in (BOOK / cid).glob("exercises/*.ipynb")
-                         if str(p.relative_to(BOOK)) not in cited)
-        if exs or orphans:
-            found[cid] = exs
-            if orphans:
-                found.setdefault("_orphans", {})[cid] = orphans
+        if blocks:
+            found[cid] = blocks
     return found
+
+
+def uncited(blocks, order, pattern):
+    """Chapter id -> notebooks matching `pattern` in that chapter's folder that
+    no block anywhere cites -- listed separately so nothing is hidden."""
+    cited = {r for bl in blocks.values() for b in bl for r in b["notebooks"]}
+    out = {}
+    for cid in order:
+        rest = sorted(str(p.relative_to(BOOK)) for p in (BOOK / cid).glob(pattern)
+                      if str(p.relative_to(BOOK)) not in cited)
+        if rest:
+            out[cid] = rest
+    return out
 
 
 def collect_psets():
@@ -170,21 +189,39 @@ def main():
 
     # chapter id -> ordinal, for display ("Ch. 3")
     num = {cid: i + 1 for i, cid in enumerate(order)}
-    exercises = collect_exercises(order, num)
-    orphan_nbs = exercises.pop("_orphans", {})
-    for cid in exercises:
+    exercises = collect_blocks("exercise", order, num)
+    orphan_nbs = uncited(exercises, order, "exercises/*.ipynb")
+    examples = collect_blocks("example", order, num)
+    example_orphans = uncited(examples, order, "*.ipynb")
+    for cid in set(exercises) | set(orphan_nbs) | set(examples) | set(example_orphans):
         titles.setdefault(cid, strip_num(chapter_title(cid)))
+    # notebook -> the examples that open it ("2.1, 2.5"), so a chapter's main
+    # notebook chips say which example in the reading they belong to
+    ex_uses = {}
+    for bl in examples.values():
+        for b in bl:
+            for rel in b["notebooks"]:
+                ex_uses.setdefault(rel, []).append(b["number"])
+
+    def main_label(label, rel):
+        uses = ex_uses.get(rel)
+        return f"{label} \u00b7 Ex {', '.join(uses)}" if uses else label
     # exercise notebook path -> "1.2 Drake Systems Fundamentals", so chips can
     # carry the textbook's own name instead of a prettified file name
     ex_label = {rel: f'{e["number"]} {e["title"]}'
                 for exs in exercises.values() for e in exs for rel in e["notebooks"]}
 
-    def ex_jump(cid):
-        n = len(exercises.get(cid, []))
+    def jump(panel, cid):
+        """Chip that switches to the Examples/Exercises tab at this chapter."""
+        data, noun = (examples, "examples") if panel == "exm" else (exercises, "exercises")
+        n = len(data.get(cid, []))
         if not n:
             return ""
-        return (f'<a class="chip exjump" href="#ex-{cid}" data-ch="{cid}">'
-                f'Ch. {num.get(cid, "?")} exercises ({n})</a>')
+        return (f'<a class="chip exjump" href="#{panel}-{cid}" data-panel="{panel}" '
+                f'data-ch="{cid}">Ch. {num.get(cid, "?")} {noun} ({n})</a>')
+
+    def ex_jump(cid):
+        return jump("ex", cid)
 
     base = f"http://localhost:{port}/lab/tree" if port else ""
     suffix = f"?token={token}" if token else ""
@@ -255,10 +292,10 @@ def main():
                     for c in lec["chapters"]
                 )
                 nbs = "".join(
-                    nb_link(lbl, rel)
+                    nb_link(main_label(lbl, rel), rel)
                     for c in lec["chapters"]
                     for lbl, rel in notebooks.get(c, {}).get("main", [])
-                ) + "".join(ex_jump(c) for c in lec["chapters"])
+                ) + "".join(jump("exm", c) + ex_jump(c) for c in lec["chapters"])
                 items.append(
                     f'<div class="item lecture"><b>Lecture {lec["number"]}</b> '
                     f'{html.escape(lec["title"])}'
@@ -311,7 +348,7 @@ def main():
         if cid not in notebooks:
             continue
         nb = notebooks[cid]
-        main = "".join(nb_link(l, r) for l, r in nb["main"])
+        main = "".join(nb_link(main_label(l, r), r) for l, r in nb["main"]) + jump("exm", cid)
         ex = "".join(nb_link(ex_label.get(r, l), r) for l, r in nb["exercises"])
         chap_html.append(
             f'<section class="chapter"><header><span class="cnum">Ch. {num[cid]}</span>'
@@ -334,50 +371,60 @@ def main():
             f'<div class="links">{links}</div></section>'
         )
 
-    # ---------- exercises ----------
-    ex_html = []
-    for cid in order:
-        exs = exercises.get(cid)
-        if not exs and not orphan_nbs.get(cid):
-            continue
-        exs = exs or []
-        with_nb = [e for e in exs if e["notebooks"]]
-        written = [e for e in exs if not e["notebooks"]]
+    # ---------- examples & exercises ----------
+    def render_panel(panel, blocks, others, noun, with_label, without_label, other_label):
+        out = []
+        for cid in order:
+            bl, rest = blocks.get(cid, []), others.get(cid, [])
+            if not bl and not rest:
+                continue
+            with_nb = [b for b in bl if b["notebooks"]]
+            without = [b for b in bl if not b["notebooks"]]
 
-        def row(e):
-            anchor = f'#{e["id"]}' if e["id"] else ""
-            notes = (f'<a class="exnotes" target="_blank" '
-                     f'href="https://manipulation.mit.edu/{cid}.html{anchor}">in notes \u2197</a>')
-            def nb_label(r):
-                if len(e["notebooks"]) == 1:
-                    return "open notebook"
-                ch = r.split("/", 1)[0]
-                stem = pretty(pathlib.Path(r).stem)
-                # say so when an exercise leans on another chapter's notebook
-                return stem if ch == cid else f"{stem} (Ch. {num.get(ch, '?')})"
-            chips = "".join(nb_link(nb_label(r), r) for r in e["notebooks"])
-            return (f'<div class="ex"><span class="exn">{e["number"]}</span>'
-                    f'<span class="ext">{html.escape(e["title"])}</span>'
-                    f'<span class="exa">{chips}{notes}</span></div>')
+            def row(b):
+                anchor = f'#{b["id"]}' if b["id"] else ""
+                notes = (f'<a class="exnotes" target="_blank" '
+                         f'href="https://manipulation.mit.edu/{cid}.html{anchor}">in notes \u2197</a>')
 
-        groups = ""
-        if with_nb:
-            groups += '<div class="sub">Notebook exercises</div>' + "".join(row(e) for e in with_nb)
-        if written:
-            groups += ('<div class="sub">Written / reading exercises</div>'
-                       + "".join(row(e) for e in written))
-        if orphan_nbs.get(cid):
-            groups += ('<div class="sub">Other exercise notebooks '
-                       '<span class="note">(in the repo, not cited by an exercise in the reading)</span></div>'
-                       + "".join(f'<div class="ex"><span class="exn">\u2013</span>'
-                                 f'<span class="ext">{html.escape(pretty(pathlib.Path(r).stem))}</span>'
-                                 f'<span class="exa">{nb_link("open notebook", r)}</span></div>'
-                                 for r in orphan_nbs[cid]))
-        ex_html.append(
-            f'<section class="chapter exch" id="ex-{cid}"><header>'
-            f'<span class="cnum">Ch. {num[cid]}</span><h3>{html.escape(titles[cid])}</h3>'
-            f'<span class="note">{len(exs)} exercises \u00b7 {len(with_nb)} with notebooks</span>'
-            f'</header>{groups}</section>')
+                def nb_label(r):
+                    if len(b["notebooks"]) == 1:
+                        return "open notebook"
+                    ch = r.split("/", 1)[0]
+                    stem = pretty(pathlib.Path(r).stem)
+                    # say so when a block leans on another chapter's notebook
+                    return stem if ch == cid else f"{stem} (Ch. {num.get(ch, '?')})"
+                chips = "".join(nb_link(nb_label(r), r) for r in b["notebooks"])
+                return (f'<div class="ex"><span class="exn">{b["number"]}</span>'
+                        f'<span class="ext">{html.escape(b["title"])}</span>'
+                        f'<span class="exa">{chips}{notes}</span></div>')
+
+            groups = ""
+            if with_nb:
+                groups += f'<div class="sub">{with_label}</div>' + "".join(map(row, with_nb))
+            if without:
+                groups += f'<div class="sub">{without_label}</div>' + "".join(map(row, without))
+            if rest:
+                title, note = other_label
+                groups += (f'<div class="sub">{title} <span class="note">{note}</span></div>'
+                           + "".join(f'<div class="ex"><span class="exn">\u2013</span>'
+                                     f'<span class="ext">{html.escape(pretty(pathlib.Path(r).stem))}</span>'
+                                     f'<span class="exa">{nb_link("open notebook", r)}</span></div>'
+                                     for r in rest))
+            out.append(
+                f'<section class="chapter exch" id="{panel}-{cid}"><header>'
+                f'<span class="cnum">Ch. {num[cid]}</span><h3>{html.escape(titles[cid])}</h3>'
+                f'<span class="note">{len(bl)} {noun} \u00b7 {len(with_nb)} with notebooks</span>'
+                f'</header>{groups}</section>')
+        return out
+
+    ex_html = render_panel(
+        "ex", exercises, orphan_nbs, "exercises",
+        "Notebook exercises", "Written / reading exercises",
+        ("Other exercise notebooks", "(in the repo, not cited by an exercise in the reading)"))
+    exm_html = render_panel(
+        "exm", examples, example_orphans, "examples",
+        "Examples with a notebook", "In the notes only",
+        ("Other chapter notebooks", "(in the repo, not opened by an example in the reading)"))
 
     # ---------- deadlines ----------
     dl_rows = []
@@ -412,6 +459,7 @@ def main():
            .replace("{{CHAPTERS}}", "\n".join(chap_html))
            .replace("{{DEADLINES}}", deadlines_html)
            .replace("{{EXERCISES}}", "\n".join(ex_html))
+           .replace("{{EXAMPLES}}", "\n".join(exm_html))
            .replace("{{SERVER}}", server_line)
            .replace("{{TOTAL}}", str(total))
            .replace("{{HANDOUTS}}", schedule.get("handouts_repo") or "")
@@ -419,6 +467,7 @@ def main():
     (HERE / "index.html").write_text(out)
     print(f"built {HERE/'index.html'}  ({total} notebooks, "
           f"{len(psets)} pset{'' if len(psets) == 1 else 's'}, "
+          f"{sum(map(len, examples.values()))} examples, "
           f"{sum(map(len, exercises.values()))} exercises, "
           f"{'server ' + str(port) if port else 'no server'})")
 
