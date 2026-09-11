@@ -158,7 +158,10 @@ def main():
         # carries utils/ (which pset code imports) and .vscode/settings.json
         # (which selects the right interpreter). With that window open, the
         # per-file chips below then open inside it.
-        bits = [f'<a class="chip work" href="{cursor_url(HANDOUTS)}" '
+        # windowId=_blank forces a new window. Without it Cursor only opens a
+        # new window when none are open; otherwise the folder is routed into
+        # whatever window is already up and the workspace never appears.
+        bits = [f'<a class="chip work" href="{cursor_url(HANDOUTS)}?windowId=_blank" '
                 f'title="Open the handouts repo as a Cursor workspace '
                 f'(gives you utils/ and the right interpreter)">open workspace</a>']
         for f in ps["pdf"]:
